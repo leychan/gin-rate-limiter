@@ -1,8 +1,10 @@
 package gin_rate_limiter
 
 import (
-	"github.com/redis/go-redis/v9"
 	"strings"
+	"sync"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,6 +14,7 @@ import (
 var CommonKeyPrefix = "request:ratelimter:"
 var redisClient *redis.Client
 var RedisOpt *redis.Options
+var redisClientMu sync.Mutex
 
 // RateLimiterMiddleware returns a Gin middleware that implements rate limiting for a single API
 func RateLimiterMiddleware(
@@ -74,13 +77,10 @@ func getRequestClientIp(c *gin.Context) string {
 
 // getRedisClient 获取redis客户端
 func getRedisClient() *redis.Client {
-	if redisClient != nil {
-		return redisClient
+	redisClientMu.Lock()
+	if redisClient == nil {
+		redisClient = redis.NewClient(RedisOpt)
 	}
-	return newRedisClient()
-}
-
-// newRedisClient 创建redis客户端
-func newRedisClient() *redis.Client {
-	return redis.NewClient(RedisOpt)
+	redisClientMu.Unlock()
+	return redisClient
 }

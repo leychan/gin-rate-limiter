@@ -1,6 +1,7 @@
 package gin_rate_limiter
 
 import (
+	"github.com/redis/go-redis/v9"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestGetRequestClientIp 测试获取请求的客户端 IP
 func TestGetRequestClientIp(t *testing.T) {
 	// 创建一个 Gin 引擎
 	r := gin.Default()
@@ -38,4 +40,185 @@ func TestGetRequestClientIp(t *testing.T) {
 	if rr.Body.String() != expected {
 		t.Errorf("Expected response body %s, but got %s", expected, rr.Body.String())
 	}
+}
+
+// TestGetRequestId 测试获取请求的唯一 ID
+func TestGetRequestId(t *testing.T) {
+	// Test case 1: X-Request-ID header is present
+	c := gin.Context{
+		Request: &http.Request{
+			Header: http.Header{
+				"X-Request-ID": []string{"abc123"},
+			},
+		},
+	}
+	expected1 := "abc123"
+	if got := getRequestId(&c); got != expected1 {
+		t.Errorf("getRequestId() = %v, want %v", got, expected1)
+	}
+
+	// Test case 2: Request-ID header is present
+	c.Request.Header = http.Header{
+		"Request-ID": []string{"def456"},
+	}
+	expected2 := "def456"
+	if got := getRequestId(&c); got != expected2 {
+		t.Errorf("getRequestId() = %v, want %v", got, expected2)
+	}
+
+	// Test case 3: Both X-Request-ID and Request-ID headers are empty
+	// c.Request.Header = http.Header{}
+	// expected3 := "" // UUID string generated
+	// if got := getRequestId(&c); got == "" || len(got) != 36 {
+	//     t.Errorf("getRequestId() = %v, want a UUID string", got)
+	// }
+}
+
+// TestApiSingleIpRateLimiterMiddleware 测试单个 API 和 IP 的限流
+func TestApiSingleIpRateLimiterMiddleware(t *testing.T) {
+	r := gin.Default()
+	r.Use(ApiSingleIpRateLimiterMiddleware(20000, 2, func(ctx *gin.Context) {
+		ctx.AbortWithStatus(http.StatusTooManyRequests)
+	}))
+	r.GET("/api/v1/users", func(c *gin.Context) {
+		ip := getRequestClientIp(c)
+		c.String(http.StatusOK, ip)
+	})
+	RedisOpt = &redis.Options{Addr: "127.0.0.1:6379"}
+	// Test case 1: Request with different API paths and IP addresses
+	t.Run("Different API paths and IP addresses", func(t *testing.T) {
+		// Set up test environment
+
+		// Define test cases
+		testCases := []struct {
+			path       string
+			ip         string
+			statusCode int
+		}{
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusTooManyRequests},
+			{"/api/v1/users", "127.0.0.2:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.2:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.2:80", http.StatusTooManyRequests},
+		}
+
+		// Execute test cases
+		for _, tc := range testCases {
+			req, err := http.NewRequest(http.MethodGet, tc.path, nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			req.RemoteAddr = tc.ip
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			if resp.Code != tc.statusCode {
+				t.Errorf("expected status code %d, got %d", tc.statusCode, resp.Code)
+			}
+		}
+	})
+}
+
+// TestApiRateLimiterMiddleware 测试单个 API 的限流
+func TestApiRateLimiterMiddleware(t *testing.T) {
+	r := gin.Default()
+	r.Use(ApiRateLimiterMiddleware(20000, 2, func(ctx *gin.Context) {
+		ctx.AbortWithStatus(http.StatusTooManyRequests)
+	}))
+	r.GET("/api/v1/users", func(c *gin.Context) {
+		ip := getRequestClientIp(c)
+		c.String(http.StatusOK, ip)
+	})
+	r.GET("/api/v2/users", func(c *gin.Context) {
+		ip := getRequestClientIp(c)
+		c.String(http.StatusOK, ip)
+	})
+	RedisOpt = &redis.Options{Addr: "127.0.0.1:6379"}
+	// Test case 1: Request with different API paths and IP addresses
+	t.Run("Different API paths", func(t *testing.T) {
+		// Set up test environment
+
+		// Define test cases
+		testCases := []struct {
+			path       string
+			ip         string
+			statusCode int
+		}{
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusTooManyRequests},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusTooManyRequests},
+		}
+
+		// Execute test cases
+		for _, tc := range testCases {
+			req, err := http.NewRequest(http.MethodGet, tc.path, nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			req.RemoteAddr = tc.ip
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			if resp.Code != tc.statusCode {
+				t.Errorf("expected status code %d, got %d", tc.statusCode, resp.Code)
+			}
+		}
+	})
+}
+
+// TestApiRateLimiterMiddleware 测试单个 API 的限流
+func TestGlobalRateLimiterMiddleware(t *testing.T) {
+	r := gin.Default()
+	r.Use(GlobalRateLimiterMiddleware(20000, 5, func(ctx *gin.Context) {
+		ctx.AbortWithStatus(http.StatusTooManyRequests)
+	}))
+	r.GET("/api/v1/users", func(c *gin.Context) {
+		ip := getRequestClientIp(c)
+		c.String(http.StatusOK, ip)
+	})
+	r.GET("/api/v2/users", func(c *gin.Context) {
+		ip := getRequestClientIp(c)
+		c.String(http.StatusOK, ip)
+	})
+	RedisOpt = &redis.Options{Addr: "127.0.0.1:6379"}
+	// Test case 1: Request with different API paths and IP addresses
+	t.Run("Global APIs", func(t *testing.T) {
+		// Set up test environment
+
+		// Define test cases
+		testCases := []struct {
+			path       string
+			ip         string
+			statusCode int
+		}{
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusOK},
+			{"/api/v2/users", "127.0.0.1:80", http.StatusTooManyRequests},
+		}
+
+		// Execute test cases
+		for _, tc := range testCases {
+			req, err := http.NewRequest(http.MethodGet, tc.path, nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			req.RemoteAddr = tc.ip
+
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			if resp.Code != tc.statusCode {
+				t.Errorf("expected status code %d, got %d", tc.statusCode, resp.Code)
+			}
+		}
+	})
 }
