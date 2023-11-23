@@ -5,7 +5,7 @@ gin-rate-limiter is a rate limiter for the gin framework, powered by redis.
 ## Installation
 
 ```bash
-go get github.com/ulule/gin-rate-limiter
+go get github.com/leychan/gin-rate-limiter
 ```
 
 ## Usage
