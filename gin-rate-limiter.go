@@ -59,13 +59,15 @@ func GlobalRateLimiterMiddleware(windowSize int64, threshold int64, abort func(c
 
 // GetRequestID 获取请求id,如果没有则生成一个
 func getRequestId(c *gin.Context) string {
-	if c.GetHeader("X-Request-ID") != "" {
-		return c.GetHeader("X-Request-ID")
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID != "" {
+		return requestID
+	}
+	requestID = c.GetHeader("Request-ID")
+	if requestID != "" {
+		return requestID
 	}
 
-	if c.GetHeader("Request-ID") != "" {
-		return c.GetHeader("Request-ID")
-	}
 	return uuid.NewString()
 }
 

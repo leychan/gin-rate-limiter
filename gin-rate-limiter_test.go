@@ -1,10 +1,11 @@
 package gin_rate_limiter
 
 import (
-	"github.com/redis/go-redis/v9"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,22 +46,20 @@ func TestGetRequestClientIp(t *testing.T) {
 // TestGetRequestId 测试获取请求的唯一 ID
 func TestGetRequestId(t *testing.T) {
 	// Test case 1: X-Request-ID header is present
+	req := &http.Request{}
+	req.Header = make(http.Header)
+
 	c := gin.Context{
-		Request: &http.Request{
-			Header: http.Header{
-				"X-Request-ID": []string{"abc123"},
-			},
-		},
+		Request: req,
 	}
+	c.Request.Header.Set("X-Request-ID", "abc123")
 	expected1 := "abc123"
 	if got := getRequestId(&c); got != expected1 {
 		t.Errorf("getRequestId() = %v, want %v", got, expected1)
 	}
 
 	// Test case 2: Request-ID header is present
-	c.Request.Header = http.Header{
-		"Request-ID": []string{"def456"},
-	}
+	c.Request.Header.Set("X-Request-ID", "def456")
 	expected2 := "def456"
 	if got := getRequestId(&c); got != expected2 {
 		t.Errorf("getRequestId() = %v, want %v", got, expected2)
