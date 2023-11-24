@@ -41,7 +41,7 @@ func globalRateLimiter(windowSize int64, threshold int64) gin.HandlerFunc {
 
 func main() {
     r := gin.Default()
-    // 限制每 10000 ms 时间内，所有服务最多 10 个请求
+    // 限制每 100000 ms 时间内，所有服务最多 10 个请求
     r.Use(globalRateLimiter(100000, 10))
 
     //redis 配置
