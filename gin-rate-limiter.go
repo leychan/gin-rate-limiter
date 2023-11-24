@@ -46,7 +46,11 @@ func ApiRateLimiterMiddleware(windowSize int64, threshold int64, abort func(ctx 
 // ApiSingleIpRateLimiterMiddleware returns a Gin middleware that implements rate limiting for a single API and IP
 func ApiSingleIpRateLimiterMiddleware(windowSize int64, threshold int64, abort func(ctx *gin.Context)) gin.HandlerFunc {
 	return RateLimiterMiddleware(windowSize, threshold, abort, func(c *gin.Context) string {
-		return c.Request.URL.Path + getRequestClientIp(c)
+		var builder strings.Builder
+		builder.WriteString(getRequestClientIp(c))
+		builder.WriteString(":")
+		builder.WriteString(c.Request.URL.Path)		
+		return builder.String()
 	})
 }
 

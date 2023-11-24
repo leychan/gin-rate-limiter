@@ -94,12 +94,12 @@ func TestApiSingleIpRateLimiterMiddleware(t *testing.T) {
 			ip         string
 			statusCode int
 		}{
-			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
-			{"/api/v1/users", "127.0.0.1:80", http.StatusOK},
-			{"/api/v1/users", "127.0.0.1:80", http.StatusTooManyRequests},
-			{"/api/v1/users", "127.0.0.2:80", http.StatusOK},
-			{"/api/v1/users", "127.0.0.2:80", http.StatusOK},
-			{"/api/v1/users", "127.0.0.2:80", http.StatusTooManyRequests},
+			{"/api/v1/users?uid=1", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users?uid=1", "127.0.0.1:80", http.StatusOK},
+			{"/api/v1/users?uid=2", "127.0.0.1:80", http.StatusTooManyRequests},
+			{"/api/v1/users?uid=2", "127.0.0.2:80", http.StatusOK},
+			{"/api/v1/users?uid=3", "127.0.0.2:80", http.StatusOK},
+			{"/api/v1/users?uid=3", "127.0.0.2:80", http.StatusTooManyRequests},
 		}
 
 		// Execute test cases
