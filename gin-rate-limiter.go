@@ -90,3 +90,10 @@ func getRedisClient() *redis.Client {
 	redisClientMu.Unlock()
 	return redisClient
 }
+
+// SetRedisClient 设置redis客户端
+func SetRedisClient(client *redis.Client) {
+	redisClientMu.Lock()
+	redisClient = client
+	redisClientMu.Unlock()
+}
